@@ -64,7 +64,10 @@ dotnet build DuckovCustomModel.VRM/DuckovCustomModel.VRM.csproj -c Release
 
 - 本地构建通过 `<DuckovPath>`（csproj 里的游戏安装目录）引用游戏的托管程序集，可用 `-p:DuckovPath=...` 覆盖；
 - CI 构建传 `-p:CI=true`，改用 NuGet 包 `DuckovGameLibs`；
-- 编译产物 `DuckovCustomModel.VRM.dll` 连同 `Shaders/` 打包出的 `vrmshaders` AB 一起放进模组目录。
+- 编译产物 `DuckovCustomModel.VRM.dll` 连同 `Shaders/` 打包出的 `vrmshaders` AB 一起放进模组目录；
+- **发布清单（放在 DLL 同目录，均不入 git，需从 Unity 工程产物复制）**：
+  - `vrmshaders` — MToon shader AB（Unity 工程 `VRMShadersAB` 构建，约 0.7 MB，**必需**）；
+  - `vrmmotion` — 动画 AB（含移动/攻击等状态动画，约 34 MB，可选；缺失时动画功能静默跳过）。
 
 ### 依赖
 
