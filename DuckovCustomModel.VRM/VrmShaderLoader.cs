@@ -4,6 +4,7 @@ using UniGLTF;
 using UniVRM10;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VRM10.MToon10;
 
 namespace DuckovCustomModel.VRM
 {
@@ -202,37 +203,75 @@ namespace DuckovCustomModel.VRM
         }
     }
 
-    /// <summary>
-    /// 让 UniVRM 使用我们从 AssetBundle 里加载出来的 MToon10 URP Shader，
-    /// 而不是 Shader.Find（那样在运行时找不到 AB 里的 Shader）。
-    /// </summary>
-    public class CustomVrmMaterialGenerator : IMaterialDescriptorGenerator
-    {
-        private readonly UrpVrm10MToonMaterialImporter mtoonImporter;
-        private readonly BuiltInGltfUnlitMaterialImporter unlitImporter = new BuiltInGltfUnlitMaterialImporter();
-        private readonly UrpVrm10MaterialDescriptorGenerator fallback = new UrpVrm10MaterialDescriptorGenerator();
-
-        public CustomVrmMaterialGenerator()
+        /// <summary>
+        /// 让 UniVRM 使用我们从 AssetBundle 里加载出来的 MToon10 URP Shader，
+        /// 而不是 Shader.Find（那样在运行时找不到 AB 里的 Shader）。
+        ///
+        /// 材质分流（顺序很重要）：
+        ///   1) 带 <c>VRMC_materials_mtoon</c> 的材质 → 官方 <c>UrpVrm10MToonMaterialImporter</c>（原样还原作者参数）
+        ///   2) 其余全部（VRM0 的 <c>VRM_USE_GLTFSHADER</c> 材质、Blender 等直出的纯 glTF PBR 材质）
+        ///      → <see cref="VrmFallbackMaterialImporter"/>（MToon10 兜底）
+        ///
+        /// ⚠ 绝不能让材质落到 UniVRM 的 <c>UrpVrm10MaterialDescriptorGenerator</c>：它对 PBR 用
+        /// <c>Shader.Find("Universal Render Pipeline/Lit")</c>，而本游戏 build 把 URP/Lit 剥掉了 →
+        /// Shader 为 null → 整个模型加载失败。见 <see cref="VrmFallbackMaterialImporter"/> 的说明。
+        /// </summary>
+        public class CustomVrmMaterialGenerator : IMaterialDescriptorGenerator
         {
-            var mtoonShader = VrmShaderLoader.MToonUrpShader;
-            mtoonImporter = new UrpVrm10MToonMaterialImporter(mtoonShader);
+            private readonly UrpVrm10MToonMaterialImporter mtoonImporter;
+            private readonly VrmFallbackMaterialImporter fallbackImporter;
 
-            if (mtoonShader == null)
-                VrmLog.Error("没有找到 MToon10 URP Shader，材质将退化为默认生成器");
-            else
-                VrmLog.Detail("材质生成器已使用 vrmshaders 中的 MToon10 URP Shader");
-        }
+            public CustomVrmMaterialGenerator(string? modelName = null)
+            {
+                var mtoonShader = VrmShaderLoader.MToonUrpShader;
+                mtoonImporter = new UrpVrm10MToonMaterialImporter(mtoonShader);
+                fallbackImporter = new VrmFallbackMaterialImporter(mtoonShader, modelName);
 
-        public MaterialDescriptor Get(GltfData data, int i)
-        {
-            if (mtoonImporter.TryCreateParam(data, i, out var mtoon)) return mtoon;
-            if (unlitImporter.TryCreateParam(data, i, out var unlit)) return unlit;
-            return fallback.Get(data, i);
-        }
+                if (mtoonShader == null)
+                    VrmLog.Error("没有找到 MToon10 URP Shader，材质将退化为默认生成器");
+                else
+                    VrmLog.Detail("材质生成器已使用 vrmshaders 中的 MToon10 URP Shader（MToon 与其它材质共用）");
+            }
 
-        public MaterialDescriptor GetGltfDefault(string? materialName = null)
-        {
-            return fallback.GetGltfDefault(materialName);
+            public MaterialDescriptor Get(GltfData data, int i)
+            {
+                if (mtoonImporter.TryCreateParam(data, i, out var mtoon)) return mtoon;
+                if (fallbackImporter.TryCreateParam(data, i, out var fallback)) return fallback;
+
+                // 只有「MToon10 Shader 没加载出来」才会走到这里。此时已经没有任何可用 Shader，
+                // 只能退回 UniVRM 默认生成器（行为与未打补丁一致），并把原因写进日志。
+                VrmLog.Error("MToon10 URP Shader 不可用，材质无法生成");
+                return new UrpVrm10MaterialDescriptorGenerator().Get(data, i);
+            }
+
+            public MaterialDescriptor GetGltfDefault(string? materialName = null)
+            {
+                // glTF 里没写材质的兜底。同样不能用 UniVRM 默认生成器（它是 URP/Lit，本游戏没有）。
+                var shader = VrmShaderLoader.MToonUrpShader;
+                if (shader == null)
+                    return new UrpVrm10MaterialDescriptorGenerator().GetGltfDefault(materialName);
+
+                return new MaterialDescriptor(
+                    materialName ?? "DefaultMaterial",
+                    shader,
+                    null,
+                    new Dictionary<string, TextureDescriptor>(),
+                    new Dictionary<string, float>
+                    {
+                        ["_AlphaMode"] = 0f,
+                        ["_Cutoff"] = 0.5f,
+                        ["_DoubleSided"] = 0f,
+                    },
+                    new Dictionary<string, Color>
+                    {
+                        ["_Color"] = Color.white,
+                        ["_ShadeColor"] = new Color(0.5f, 0.5f, 0.5f, 1f),
+                    },
+                    new Dictionary<string, Vector4>(),
+                    new Action<Material>[]
+                    {
+                        material => new MToonValidator(material).Validate(),
+                    });
+            }
         }
-    }
 }

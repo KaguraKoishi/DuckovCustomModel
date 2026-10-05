@@ -133,7 +133,7 @@ namespace DuckovCustomModel.VRM
                         controlRigGenerationOption: ControlRigGenerationOption.None,
                         showMeshes: true,
                         awaitCaller: new RuntimeOnlyAwaitCaller(),
-                        materialGenerator: new CustomVrmMaterialGenerator());
+                        materialGenerator: new CustomVrmMaterialGenerator(System.IO.Path.GetFileName(path)));
 
                     if (instance == null)
                     {

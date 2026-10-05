@@ -24,7 +24,7 @@ namespace DuckovCustomModel.VRM
         private const string HarmonyId = "com.kagurakoishi.duckovcustommodel.vrm";
 
         /// <summary>VRM 扩展模组自身的版本号（独立于 DCM 本体的版本）。</summary>
-        public const string ModVersion = "0.1.0";
+        public const string ModVersion = "0.1.2";
 
         private void Awake()
         {
