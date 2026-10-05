@@ -2,6 +2,10 @@ bin/
 obj/
 /YsmShaderBundle/*.log
 /packages/
+/.vs/
+/.workbuddy/
+*.log
+*.user
 riderModule.iml
 /_ReSharper.Caches/
 /.idea/.idea.DuckovCustomModel/.idea/.gitignore
